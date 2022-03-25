@@ -1,0 +1,6 @@
+```{r}
+library(readr)
+summary_haunted_hrv_summary_hrv <- read_csv("data/summary_haunted_hrv - summary_hrv.csv")
+head(summary_haunted_hrv_summary_hrv)
+```
+
