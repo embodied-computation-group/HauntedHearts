@@ -94,31 +94,69 @@ mat_data <- haunted_data %>%
                names_to = c("Time", "Measure"),
                values_to = "Rating") %>%
   group_by(Time, Measure)  %>%
+  filter(Measure != "SympSum") %>%
+  filter(Rating < 4)
+
+
+
+summary_data <- mat_data %>%
   summarise(meanRating = mean(Rating, na.rm=TRUE), 
             sdRating = sd(Rating, na.rm=TRUE), 
            num = n()) %>%
   mutate(seRating = sdRating/sqrt(num))
 
 mat_data$Time <- factor(mat_data$Time,levels=c("pre","post"))
+summary_data$Time <- factor(summary_data$Time,levels=c("pre","post"))
 
 dodge <- position_dodge(width=0.9)
-ggplot(data = mat_data, aes(x = Measure, y = meanRating, fill = Time)) +
+p1<-ggplot(data = summary_data, aes(x = Measure, y = meanRating, fill = Time)) +
   geom_bar(stat="identity", position=dodge) +
   geom_errorbar(aes(ymin = meanRating-seRating, ymax =  meanRating+seRating, fill = Time),
                 position =dodge, width = 0.2) +
   scale_x_discrete(labels=c(
     "SympBreathing" = "Breathing", "SympDizzy" = "Dizzy", "SympNoRelax" ="Tense", "SympRapidHB" = "Heartbeat", "SympShaky" = "Shaky", "SympSum" = "Sum"))+
   scale_fill_manual(values = c("#E7B800", "#FC4E07"))+
-  scale_y_continuous(limits = c(0,6)) +
+  scale_y_continuous(limits = c(0,3), breaks=c(0, 1, 2, 3)) +
   ylab("Mean Rating") +
   theme_cowplot() +
-  ggtitle("Change in Somatic Anxiety Symptoms")
+  theme(legend.position = "top") +
+  ggtitle("Change in Symptoms")
 
   #geom_boxplot()
 
+p1
+ggsave(here("figs", "boxplot_time_fear.jpeg"), height = 4, width = 6, dpi = 150, units = "in")
 
-ggsave(here("figs", "boxplot_time_fear.png"), height = 4, width = 6, dpi = 150, units = "in")
-  
+
 
 ```
+
+```{r}
+
+mat_data$Rating <- factor(mat_data$Rating )
+mat_data$Time <- factor(mat_data$Time,levels=c("pre","post"))
+p2 <- ggplot(data = mat_data, aes(y = Measure, fill = factor(Rating))) +
+  geom_bar(aes(fill = Rating), position = position_fill(reverse = TRUE)) +
+  scale_fill_manual(values=c("#151515FF", "#A6A6A6FF","#C0C3C6FF", "#EA5F21FF", "#F6FAFDFF"), 
+                    name="Rating",
+                    breaks=c("0", "1", "2", "3"),
+                    labels=c("1 - Not at all", "2", "3", "4 - Very Much"))+
+  scale_y_discrete(labels=c(
+    "SympBreathing" = "Breathing", "SympDizzy" = "Dizzy", "SympNoRelax" ="Tense", "SympRapidHB" = "Heartbeat", "SympShaky" = "Shaky", "SympSum" = "Sum"))+
+    theme_cowplot() +
+    theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        legend.position = "top")+
+  xlab("Proportion of Responses") +
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1))+
+  facet_grid(Time~.) +
+  ggtitle("Somatic Anxiety (STICSA) Item-Level Responses")
+
+p2 + p1 + plot_annotation(tag_levels = 'A')
+
+
+ggsave(here("figs", "surveyResults.png"), height = 6, width = 12, dpi = 150, units = "in")
+
+```
+
 
