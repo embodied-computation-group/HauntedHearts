@@ -111,7 +111,8 @@ ggplot(data = mat_data, aes(x = Measure, y = meanRating, fill = Time)) +
   scale_fill_manual(values = c("#E7B800", "#FC4E07"))+
   scale_y_continuous(limits = c(0,6)) +
   ylab("Mean Rating") +
-  theme_cowplot()
+  theme_cowplot() +
+  ggtitle("Change in Somatic Anxiety Symptoms")
 
   #geom_boxplot()
 
