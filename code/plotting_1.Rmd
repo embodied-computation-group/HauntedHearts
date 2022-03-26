@@ -5,11 +5,19 @@ library(tidyverse)
 library(viridisLite)
 library(cowplot)
 library(patchwork)
+library(dplyr)
 
 haunted_data <- read_csv(here("data", "/summary_r.csv"))
-head(summary_haunted_hrv_summary_hrv)
+head(haunted_data)
 
-p1 <- ggplot(data = haunted_data, aes ( x = (1-PsiSlope)+20, y = sum_pre_symp, fill =MaxBPM )) +
+
+
+```
+
+
+```{r}
+
+p1 <- ggplot(data = haunted_data, aes ( x = (1-PsiSlope)+20, y = pre_SympSum, fill =MaxBPM )) +
   scale_fill_viridis_b()+  
   theme_cowplot()+
   geom_smooth(method = "lm")+
@@ -18,7 +26,7 @@ p1 <- ggplot(data = haunted_data, aes ( x = (1-PsiSlope)+20, y = sum_pre_symp, f
   geom_point(shape = 21)
 
 
-p2 <- ggplot(data = haunted_data, aes ( x = rank(PsiThreshold), y = rank(sum_pre_symp), fill =MaxBPM )) +
+p2 <- ggplot(data = haunted_data, aes ( x = PsiThreshold, y = pre_SympSum, fill =MaxBPM )) +
   scale_fill_viridis_b()+  
   theme_cowplot()+
   geom_smooth(method = "lm")+
@@ -27,7 +35,7 @@ p2 <- ggplot(data = haunted_data, aes ( x = rank(PsiThreshold), y = rank(sum_pre
   geom_point(shape = 21)
 
 
-p3 <- ggplot(data = haunted_data, aes ( x = rank(d), y = rank(sum_pre_symp), fill =MaxBPM )) +
+p3 <- ggplot(data = haunted_data, aes ( x = d, y = pre_SympSum, fill =MaxBPM )) +
   scale_fill_viridis_b()+  
   theme_cowplot()+
   geom_smooth(method = "lm")+
@@ -38,7 +46,78 @@ p3 <- ggplot(data = haunted_data, aes ( x = rank(d), y = rank(sum_pre_symp), fil
 p1+p2+p3 + plot_layout(guides = "collect")
 
 ggsave(here("figs", "scatter_baseline.png"), height = 1200, width = 2400, dpi = 150, units = "px")
+```
 
+
+```{r}
+p1 <- ggplot(data = haunted_data, aes ( x = (1-PsiSlope)+max(PsiSlope), y = pre_RateScared, fill =MaxBPM )) +
+  scale_fill_viridis_b()+  
+  theme_cowplot()+
+  geom_smooth(method = "lm")+
+  ylab("Baseline Fear")+
+  xlab("Interoceptive Precision")+
+  geom_point(shape = 21)
+
+
+p2 <- ggplot(data = haunted_data, aes ( x = PsiThreshold, y = pre_RateScared, fill =MaxBPM )) +
+  scale_fill_viridis_b()+  
+  theme_cowplot()+
+  geom_smooth(method = "lm")+
+  ylab("Baseline Fear")+
+  xlab("Interoceptive Bias")+
+  geom_point(shape = 21)
+
+
+p3 <- ggplot(data = haunted_data, aes ( x = d, y =  pre_RateScared, fill =MaxBPM )) +
+  scale_fill_viridis_b()+  
+  theme_cowplot()+
+  geom_smooth(method = "lm")+
+  ylab("Baseline Fear")+
+  xlab("Interoceptive Sensitivity")+
+  geom_point(shape = 21)
+
+tp <- p1+p2+p3 + plot_layout(guides = "collect")
+
+tp
+
+ggsave(here("figs", "scatter_baseline_fear.png"), height = 1200, width = 2400, dpi = 150, units = "px")
+
+
+```
+
+```{r}
+
+mat_data <- haunted_data %>%
+  select(matches(".Symp.")) %>%
+  pivot_longer(cols = everything(), 
+               names_sep = "_", 
+               names_to = c("Time", "Measure"),
+               values_to = "Rating") %>%
+  group_by(Time, Measure)  %>%
+  summarise(meanRating = mean(Rating, na.rm=TRUE), 
+            sdRating = sd(Rating, na.rm=TRUE), 
+           num = n()) %>%
+  mutate(seRating = sdRating/sqrt(num))
+
+mat_data$Time <- factor(mat_data$Time,levels=c("pre","post"))
+
+dodge <- position_dodge(width=0.9)
+ggplot(data = mat_data, aes(x = Measure, y = meanRating, fill = Time)) +
+  geom_bar(stat="identity", position=dodge) +
+  geom_errorbar(aes(ymin = meanRating-seRating, ymax =  meanRating+seRating, fill = Time),
+                position =dodge, width = 0.2) +
+  scale_x_discrete(labels=c(
+    "SympBreathing" = "Breathing", "SympDizzy" = "Dizzy", "SympNoRelax" ="Tense", "SympRapidHB" = "Heartbeat", "SympShaky" = "Shaky", "SympSum" = "Sum"))+
+  scale_fill_manual(values = c("#E7B800", "#FC4E07"))+
+  scale_y_continuous(limits = c(0,6)) +
+  ylab("Mean Rating") +
+  theme_cowplot()
+
+  #geom_boxplot()
+
+
+ggsave(here("figs", "boxplot_time_fear.png"), height = 4, width = 6, dpi = 150, units = "in")
+  
 
 ```
 
