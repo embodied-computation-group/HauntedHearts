@@ -140,7 +140,7 @@ p2 <- ggplot(data = mat_data, aes(y = Measure, fill = factor(Rating))) +
   scale_fill_manual(values=c("#151515FF", "#A6A6A6FF","#C0C3C6FF", "#EA5F21FF", "#F6FAFDFF"), 
                     name="Rating",
                     breaks=c("0", "1", "2", "3"),
-                    labels=c("1 - Not at all", "2", "3", "4 - Very Much"))+
+                    labels=c("1", "2", "3", "4"))+
   scale_y_discrete(labels=c(
     "SympBreathing" = "Breathing", "SympDizzy" = "Dizzy", "SympNoRelax" ="Tense", "SympRapidHB" = "Heartbeat", "SympShaky" = "Shaky", "SympSum" = "Sum"))+
     theme_cowplot() +
@@ -150,13 +150,65 @@ p2 <- ggplot(data = mat_data, aes(y = Measure, fill = factor(Rating))) +
   xlab("Proportion of Responses") +
   scale_x_continuous(labels = scales::percent_format(accuracy = 1))+
   facet_grid(Time~.) +
-  ggtitle("Somatic Anxiety (STICSA) Item-Level Responses")
+  ggtitle("Item-Level Responses")#+
+ # guides(fill = guide_legend(label.position = "bottom"))
 
 p2 + p1 + plot_annotation(tag_levels = 'A')
 
 
 ggsave(here("figs", "surveyResults.png"), height = 6, width = 12, dpi = 150, units = "in")
 
+```
+```{r}
+
+
+plot_data <- haunted_data %>%
+  select(matches("RateScared"), matches("SympSum")) %>%
+  mutate(Diff_Fear = post_RateScared-pre_RateScared) %>%
+  mutate(Diff_Symptom = post_SympSum-pre_SympSum) %>%
+  pivot_longer(cols = everything(), 
+               names_sep = "_", 
+               names_to = c("Time", "Measure"),
+               values_to = "Rating") %>%
+  group_by(Time, Measure) # %>%
+  
+rate_data <- plot_data %>%
+  filter(Time != "Diff")#%>%
+#  filter(Rating < 11)
+
+rate_data <- plot_data %>%
+  filter(Time != "Diff")# %>%
+  #filter(Rating < 11)
+  
+library(ggpol)
+
+
+rate_data$Time <- factor(rate_data$Time,levels=c("pre","post"))
+
+p3 <- ggplot(rate_data, aes(x = Measure, y = Rating, fill = Time)) +
+  geom_boxjitter(notch = TRUE, width = .5, jitter.shape = 1, outlier.shape = NA) +
+  scale_fill_manual(values = c("#E7B800", "#FC4E07")) +
+  theme_cowplot()+
+  facet_wrap(~Measure, scales = "free", 
+             labeller = as_labeller(c(RateScared = "Rating", SympSum = "Sum of Symptoms")),
+            strip.position = "left")+
+  theme(
+  strip.background = element_blank(),
+  strip.placement = "outside",
+  legend.position = "top") +
+  scale_x_discrete(labels=c(
+    "RateScared" = "Fear",  "SympSum" = "Somatic Anxiety")) +
+   ylab(NULL) +
+  ggtitle("Fear and Somatic Anxiety")
+  
+
+p3
+
+p3 + p2 + plot_annotation(tag_levels = 'A') & 
+  theme(text = element_text('arial'))
+
+
+ggsave(here("figs", "surveyResults2.png"), height = 6, width = 12, dpi = 150, units = "in")
 ```
 
 
