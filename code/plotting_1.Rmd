@@ -6,51 +6,451 @@ library(viridisLite)
 library(cowplot)
 library(patchwork)
 library(dplyr)
+library(ggpubr)
+library(gghalves)
+remotes::install_github('jorvlan/raincloudplots')
+
+library(raincloudplots)
 
 haunted_data <- read_csv(here("data", "/summary_r.csv"))
 head(haunted_data)
 
+### some basic exclusions
+
+haunted_data <- haunted_data %>%
+  filter(`Complete (1 = yes, 0 = no)` == 1) %>%
+  filter(gender != 2) %>%
+  filter(d > -1) %>%
+  na.omit()
+
+## Invert Slope
+
+haunted_data$PsiPrecision <- (-haunted_data$PsiSlope)+ max(haunted_data$PsiSlope)
+
+## define LM function
+
+
+results_LM <- function(data, xvar, yvar) {
+    fm <- as.formula(paste(yvar, "~", xvar))
+    lm(fm, data = data)
+}
+
+```
+
+
+
+
+Plot of Subjective Variables
+
+```{r}
+
+
+#### Fear and Somatic Anxiety (Sum), pre post
+plot_data <- haunted_data %>%
+  select(matches("RateScared"), matches("SympSum"), matches("pid")) %>%
+  mutate(Diff_Fear = post_RateScared-pre_RateScared) %>%
+  mutate(Diff_Symptom = post_SympSum-pre_SympSum) %>%
+  pivot_longer(cols = -c(pid), 
+               names_sep = "_", 
+               names_to = c("Time", "Measure"),
+               values_to = "Rating") %>%
+  filter(Measure != "SympRapidHB") %>%
+  group_by(Time, Measure) # %>%
+  
+rate_data <- plot_data %>%
+  filter(Time != "Diff")#%>%
+#  filter(Rating < 11)
+
+rate_data <- plot_data %>%
+  filter(Time != "Diff")# %>%
+  #filter(Rating < 11)
+  
+
+rate_data$Time <- factor(rate_data$Time,levels=c("pre","post"))
+
+
+
+tmp = as.numeric(rate_data$Time)
+tmp[tmp == 1] = .8
+tmp[tmp == 2] = 1.2
+jit = jitter(tmp, .5)
+
+
+rate_data$jit <- jit
+  
+p1<- ggplot(rate_data) +
+  facet_wrap(~Measure, scales = "free", 
+             labeller = as_labeller(c(RateScared = "Rating", SympSum = "Sum of Symptoms")),
+            strip.position = "left")+
+  geom_point(data = rate_data %>% dplyr::filter(Time == "pre"), aes(x = jit, y = Rating), show.legend = TRUE, shape = 1) +
+  geom_point(data = rate_data %>% dplyr::filter(Time == "post"), aes(x = jit, y = Rating), show.legend = TRUE, shape = 1) +
+  geom_line(aes(x = jit, y = Rating, group = pid), color = "gray", alpha = 0.5, show.legend = FALSE) +
+
+  # uncomment these lines to add half violins 
+#  geom_half_violin(
+#    data = rate_data %>% dplyr::filter(Time == "post"), aes(x = Measure, y = Rating, fill = Time),
+#    side ="r", position = position_nudge(x = .3), alpha = 0.5, color = "white",
+#  ) +
+  
+#  geom_half_violin(
+#    data = rate_data %>% dplyr::filter(Time == "pre"), aes(x = Measure, y = Rating, fill = Time),
+#    side ="l", position = position_nudge(x = -.3), alpha = 0.5, color = "white",
+#  ) +
+  
+  geom_half_boxplot(
+    data = rate_data %>% dplyr::filter(Time == "pre"), aes(x = Measure, y = Rating, fill = Time),
+    side ="l", position = position_nudge(x = -.3),width = .2, notch = TRUE, outlier.shape = NA, 
+  ) +
+  
+   geom_half_boxplot(
+    data = rate_data %>% dplyr::filter(Time == "post"), aes(x = Measure, y = Rating, fill = Time),
+    side ="r", position = position_nudge(x = .3), width = .2, notch = TRUE, outlier.shape = NA,
+  ) +
+  
+  scale_fill_manual(values = c("#E7B800", "#FC4E07"), breaks = c("pre", "post")) +
+  theme_cowplot()+
+  theme(
+  strip.background = element_blank(),
+  strip.placement = "outside",
+  legend.position = "top") +
+  scale_x_discrete(labels=c(
+    "RateScared" = "Fear",  "SympSum" = "Somatic Anxiety")) +
+   ylab(NULL) +
+  xlab("Measure")+
+  ggtitle("Fear and Somatic Anxiety")
+  
+p1
+  
+
 
 
 ```
 
 
 ```{r}
+### Individual STICSA Propotional Bar Plot 
 
-p1 <- ggplot(data = haunted_data, aes ( x = (1-PsiSlope)+20, y = pre_SympSum, fill =MaxBPM )) +
+mat_data <- haunted_data %>%
+  select(matches(".Symp.")) %>%
+  pivot_longer(cols = everything(), 
+               names_sep = "_", 
+               names_to = c("Time", "Measure"),
+               values_to = "Rating") %>%
+  group_by(Time, Measure)  %>%
+  filter(Measure != "SympSum") %>%
+  filter(Rating < 4)
+
+
+mat_data$Rating <- factor(mat_data$Rating )
+mat_data$Time <- factor(mat_data$Time,levels=c("pre","post"))
+p2 <- ggplot(data = mat_data, aes(y = Measure, fill = factor(Rating))) +
+  geom_bar(aes(fill = Rating), position = position_fill(reverse = TRUE)) +
+  scale_fill_manual(values=c("#151515FF", "#A6A6A6FF","#C0C3C6FF", "#EA5F21FF", "#F6FAFDFF"), 
+                    name="Rating",
+                    breaks=c("0", "1", "2", "3"),
+                    labels=c("1", "2", "3", "4"))+
+  scale_y_discrete(labels=c(
+    "SympBreathing" = "Breathing", "SympDizzy" = "Dizzy", "SympNoRelax" ="Tense", "SympRapidHB" = "Heartbeat", "SympShaky" = "Shaky", "SympSum" = "Sum"))+
+    theme_cowplot() +
+    theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        legend.position = "top")+
+  xlab("Proportion of Responses") +
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1))+
+  facet_grid(Time~.) +
+  ggtitle("Item-Level Responses")
+
+p2
+```
+
+```{r}
+
+p1 + p2 + plot_annotation(tag_levels = 'A') & 
+  theme(text = element_text('arial'))
+
+
+ggsave(here("figs", "Figure_2_SubjectiveVars.png"), height = 6, width = 12, dpi = 150, units = "in")
+```
+
+
+
+
+Scatter Plots: Baseline Fear and HRD 
+```{r}
+############################## - Threshold
+xvar = "PsiThreshold"
+yvar = "pre_SympSum"
+xlabel = "Interoceptive Bias"
+ylabel = "Baseline Anxiety Symptoms"
+
+model_fit <- results_LM(haunted_data, xvar, yvar)
+summary(model_fit)
+temp_var <- predict(model_fit, interval="prediction")
+
+new_df <- cbind(haunted_data, temp_var)
+
+p1<-ggplot(new_df, aes_string(xvar, yvar))+
+    geom_point() +
+   # geom_line(aes(y=lwr), color = "red", linetype = "dashed")+ # for prediction intervals
+   # geom_line(aes(y=upr), color = "red", linetype = "dashed")+
+    geom_smooth(method=lm, se=TRUE) +
+  theme_cowplot()+
+    stat_cor(method = "spearman", label.x = min(haunted_data[,xvar]), label.y = max(haunted_data[,yvar]))+
+  ylab(ylabel)+
+  xlab(xlabel)
+
+
+############################## - Slope
+  
+xvar = "PsiPrecision"
+yvar = "pre_SympSum"
+xlabel = "Interoceptive Precision"
+ylabel = "Baseline Anxiety Symptoms"
+
+model_fit <- results_LM(haunted_data, xvar, yvar)
+summary(model_fit)
+temp_var <- predict(model_fit, interval="prediction")
+
+new_df <- cbind(haunted_data, temp_var)
+
+p2<-ggplot(new_df, aes_string(xvar, yvar))+
+    geom_point() +
+   # geom_line(aes(y=lwr), color = "red", linetype = "dashed")+ # for prediction intervals
+   # geom_line(aes(y=upr), color = "red", linetype = "dashed")+
+    geom_smooth(method=lm, se=TRUE) +
+  theme_cowplot()+
+    stat_cor(method = "spearman", label.x = min(haunted_data[,xvar]), label.y = max(haunted_data[,yvar]))+
+  ylab(ylabel)+
+  xlab(xlabel)
+
+
+
+############################## - Dprime
+  
+ 
+xvar = "d"
+yvar = "pre_SympSum"
+xlabel = "Interoceptive Sensitivity"
+ylabel = "Baseline Anxiety Symptoms"
+
+model_fit <- results_LM(haunted_data, xvar, yvar)
+summary(model_fit)
+temp_var <- predict(model_fit, interval="prediction")
+
+new_df <- cbind(haunted_data, temp_var)
+
+p3<-ggplot(new_df, aes_string(xvar, yvar))+
+    geom_point() +
+  #  geom_line(aes(y=lwr), color = "red", linetype = "dashed")+ # for prediction intervals
+  #  geom_line(aes(y=upr), color = "red", linetype = "dashed")+
+    geom_smooth(method=lm, se=TRUE) +
+  theme_cowplot()+
+    stat_cor(method = "spearman", label.x = min(haunted_data[,xvar]), label.y = max(haunted_data[,yvar]))+
+  ylab(ylabel)+
+  xlab(xlabel)
+
+
+#################### - Combined Plot
+
+p1+p2+p3 + plot_layout(guides = "collect")
+
+ggsave(here("figs", "scatter_baseline_anxiety.png"), height = 1200, width = 2400, dpi = 150, units = "px")
+
+p1 + p2 + p3
+
+
+```
+
+
+
+```{r}
+############################## - Threshold
+xvar = "PsiThreshold"
+yvar = "pre_RateScared"
+
+results_LM <- function(data, xvar, yvar) {
+    fm <- as.formula(paste(yvar, "~", xvar))
+    lm(fm, data = data)
+}
+
+
+model_fit <- results_LM(haunted_data, xvar, yvar)
+summary(model_fit)
+temp_var <- predict(model_fit, interval="prediction")
+
+new_df <- cbind(haunted_data, temp_var)
+
+p1<-ggplot(new_df, aes_string(xvar, yvar))+
+    geom_point() +
+   # geom_line(aes(y=lwr), color = "red", linetype = "dashed")+
+   # geom_line(aes(y=upr), color = "red", linetype = "dashed")+
+    geom_smooth(method=lm, se=TRUE) +
+  theme_cowplot()+
+    stat_cor(method = "spearman", label.x = -50, label.y =-.5)
+
+
+############################## - Slope
+  
+xvar = "PsiSlope"
+yvar = "pre_RateScared"
+
+results_LM <- function(data, xvar, yvar) {
+    fm <- as.formula(paste(yvar, "~", xvar))
+    lm(fm, data = data)
+}
+
+
+model_fit <- results_LM(haunted_data, xvar, yvar)
+summary(model_fit)
+temp_var <- predict(model_fit, interval="prediction")
+
+new_df <- cbind(haunted_data, temp_var)
+
+p2<-ggplot(new_df, aes_string(xvar, yvar))+
+    geom_point() +
+   # geom_line(aes(y=lwr), color = "red", linetype = "dashed")+
+   # geom_line(aes(y=upr), color = "red", linetype = "dashed")+
+    geom_smooth(method=lm, se=TRUE)+
+  theme_cowplot()+
+    stat_cor(method = "spearman", label.x = 0, label.y =-.5)
+
+
+
+############################## - Dprime
+  
+xvar = "d"
+yvar = "pre_RateScared"
+
+results_LM <- function(data, xvar, yvar) {
+    fm <- as.formula(paste(yvar, "~", xvar))
+    lm(fm, data = data)
+}
+
+
+model_fit <- results_LM(haunted_data, xvar, yvar)
+summary(model_fit)
+
+temp_var <- predict(model_fit, interval="prediction")
+new_df <- cbind(haunted_data, temp_var)
+
+p3<-ggplot(new_df, aes_string(xvar, yvar))+
+    geom_point() +
+    #geom_line(aes(y=lwr), color = "red", linetype = "dashed")+
+    #geom_line(aes(y=upr), color = "red", linetype = "dashed")+
+    geom_smooth(method=lm, se=TRUE)+
+  theme_cowplot()+
+    stat_cor(method = "spearman", label.x = -2, label.y =-.5)
+
+
+
+p1+p2+p3 + plot_layout(guides = "collect")
+
+ggsave(here("figs", "scatter_baseline_fear.png"), height = 1200, width = 2400, dpi = 150, units = "px")
+
+p1 + p2 + p3
+
+```
+
+```{r}
+############################## - Threshold
+xvar = "PsiThreshold"
+yvar = "post_SympSum"
+
+results_LM <- function(data, xvar, yvar) {
+    fm <- as.formula(paste(yvar, "~", xvar))
+    lm(fm, data = data)
+}
+
+
+model_fit <- results_LM(haunted_data, xvar, yvar)
+summary(model_fit)
+temp_var <- predict(model_fit, interval="prediction")
+
+new_df <- cbind(haunted_data, temp_var)
+
+p1<-ggplot(new_df, aes_string(xvar, yvar))+
+    geom_point() +
+    geom_line(aes(y=lwr), color = "red", linetype = "dashed")+
+    geom_line(aes(y=upr), color = "red", linetype = "dashed")+
+    geom_smooth(method=lm, se=TRUE) +
+  theme_cowplot()+
+    stat_cor(method = "spearman", label.x = -50, label.y =-.5)
+
+
+############################## - Slope
+  
+xvar = "PsiSlope"
+yvar = "post_SympSum"
+
+results_LM <- function(data, xvar, yvar) {
+    fm <- as.formula(paste(yvar, "~", xvar))
+    lm(fm, data = data)
+}
+
+
+model_fit <- results_LM(haunted_data, xvar, yvar)
+summary(model_fit)
+temp_var <- predict(model_fit, interval="prediction")
+
+new_df <- cbind(haunted_data, temp_var)
+
+p2<-ggplot(new_df, aes_string(xvar, yvar))+
+    geom_point() +
+    geom_line(aes(y=lwr), color = "red", linetype = "dashed")+
+    geom_line(aes(y=upr), color = "red", linetype = "dashed")+
+    geom_smooth(method=lm, se=TRUE)+
+  theme_cowplot()+
+    stat_cor(method = "spearman", label.x = 0, label.y =-.5)
+
+
+
+############################## - Dprime
+  
+xvar = "d"
+yvar = "post_SympSum"
+
+results_LM <- function(data, xvar, yvar) {
+    fm <- as.formula(paste(yvar, "~", xvar))
+    lm(fm, data = data)
+}
+
+
+model_fit <- results_LM(haunted_data, xvar, yvar)
+summary(model_fit)
+
+temp_var <- predict(model_fit, interval="prediction")
+new_df <- cbind(haunted_data, temp_var)
+
+p3<-ggplot(new_df, aes_string(xvar, yvar))+
+    geom_point() +
+    geom_line(aes(y=lwr), color = "red", linetype = "dashed")+
+    geom_line(aes(y=upr), color = "red", linetype = "dashed")+
+    geom_smooth(method=lm, se=TRUE)+
+  theme_cowplot()+
+    stat_cor(method = "spearman", label.x = -2, label.y =-.5)
+
+
+
+p1+p2+p3 + plot_layout(guides = "collect")
+
+ggsave(here("figs", "scatter_baseline_anxiety.png"), height = 1200, width = 2400, dpi = 150, units = "px")
+
+p1 + p2 + p3
+
+
+```
+
+```{r}
+p1 <- ggplot(data = haunted_data, aes ( x = (-PsiSlope)+max(PsiSlope), y = pre_RateScared, fill =MeanBPM )) +
   scale_fill_viridis_b()+  
   theme_cowplot()+
   geom_smooth(method = "lm")+
-  ylab("Baseline Somatic Anxiety")+
+  ylab("Baseline Fear")+
   xlab("Interoceptive Precision")+
   geom_point(shape = 21)
 
 
-p2 <- ggplot(data = haunted_data, aes ( x = PsiThreshold, y = pre_SympSum, fill =MaxBPM )) +
-  scale_fill_viridis_b()+  
-  theme_cowplot()+
-  geom_smooth(method = "lm")+
-  ylab("Baseline Somatic Anxiety")+
-  xlab("Interoceptive Bias")+
-  geom_point(shape = 21)
-
-
-p3 <- ggplot(data = haunted_data, aes ( x = d, y = pre_SympSum, fill =MaxBPM )) +
-  scale_fill_viridis_b()+  
-  theme_cowplot()+
-  geom_smooth(method = "lm")+
-  ylab("Baseline Somatic Anxiety")+
-  xlab("Interoceptive Sensitivity")+
-  geom_point(shape = 21)
-
-p1+p2+p3 + plot_layout(guides = "collect")
-
-ggsave(here("figs", "scatter_baseline.png"), height = 1200, width = 2400, dpi = 150, units = "px")
-```
-
-
-```{r}
-p1 <- ggplot(data = haunted_data, aes ( x = (1-PsiSlope)+max(PsiSlope), y = pre_RateScared, fill =MaxBPM )) +
+p1 <- ggplot(data = haunted_data, aes ( x = (PsiSlope), y = pre_RateScared, fill =MaxBPM )) +
   scale_fill_viridis_b()+  
   theme_cowplot()+
   geom_smooth(method = "lm")+
@@ -84,6 +484,48 @@ ggsave(here("figs", "scatter_baseline_fear.png"), height = 1200, width = 2400, d
 
 
 ```
+
+
+
+```{r}
+
+
+
+
+ggsave(here("figs", "surveyResults.png"), height = 6, width = 12, dpi = 150, units = "in")
+
+```
+Scraps
+
+```{r}
+
+p1 <- ggplot(data = haunted_data, aes ( x = (1-PsiSlope)+max(PsiSlope), y = pre_SympSum, fill =MaxBPM )) +
+  scale_fill_viridis_b()+  
+  theme_cowplot()+
+  geom_smooth(method = "lm")+
+  ylab("Baseline Somatic Anxiety")+
+  xlab("Interoceptive Precision")+
+  geom_point(shape = 21)
+
+
+p2 <- ggplot(data = haunted_data, aes ( x = PsiThreshold, y = pre_SympSum, fill =MaxBPM )) +
+  scale_fill_viridis_b()+  
+  theme_cowplot()+
+  geom_smooth(method = "lm")+
+  ylab("Baseline Somatic Anxiety")+
+  xlab("Interoceptive Bias")+
+  geom_point(shape = 21)
+
+
+p3 <- ggplot(data = haunted_data, aes ( x = d, y = pre_SympSum, fill =MaxBPM )) +
+  scale_fill_viridis_b()+  
+  theme_cowplot()+
+  geom_smooth(method = "lm")+
+  ylab("Baseline Somatic Anxiety")+
+  xlab("Interoceptive Sensitivity")+
+  geom_point(shape = 21)
+```
+
 
 ```{r}
 
@@ -131,7 +573,30 @@ ggsave(here("figs", "boxplot_time_fear.jpeg"), height = 4, width = 6, dpi = 150,
 
 ```
 
+
+
 ```{r}
+
+
+#+
+   #+
+  #geom_boxjitter(notch = TRUE, width = .5, jitter.shape = 21, outlier.shape = NA, height = 0) +
+  scale_fill_manual(values = c("#E7B800", "#FC4E07")) +
+  theme_cowplot()+
+  facet_wrap(~Measure, scales = "free", 
+             labeller = as_labeller(c(RateScared = "Rating", SympSum = "Sum of Symptoms")),
+            strip.position = "left")+
+  theme(
+  strip.background = element_blank(),
+  strip.placement = "outside",
+  legend.position = "top") +
+  scale_x_discrete(labels=c(
+    "RateScared" = "Fear",  "SympSum" = "Somatic Anxiety")) +
+   ylab(NULL) +
+  ggtitle("Fear and Somatic Anxiety")
+  p1
+
+### Individual STICSA Propotional Bar Plot 
 
 mat_data$Rating <- factor(mat_data$Rating )
 mat_data$Time <- factor(mat_data$Time,levels=c("pre","post"))
@@ -150,65 +615,10 @@ p2 <- ggplot(data = mat_data, aes(y = Measure, fill = factor(Rating))) +
   xlab("Proportion of Responses") +
   scale_x_continuous(labels = scales::percent_format(accuracy = 1))+
   facet_grid(Time~.) +
-  ggtitle("Item-Level Responses")#+
- # guides(fill = guide_legend(label.position = "bottom"))
-
-p2 + p1 + plot_annotation(tag_levels = 'A')
+  ggtitle("Item-Level Responses")
 
 
-ggsave(here("figs", "surveyResults.png"), height = 6, width = 12, dpi = 150, units = "in")
+## plotting and saving 
 
 ```
-```{r}
-
-
-plot_data <- haunted_data %>%
-  select(matches("RateScared"), matches("SympSum")) %>%
-  mutate(Diff_Fear = post_RateScared-pre_RateScared) %>%
-  mutate(Diff_Symptom = post_SympSum-pre_SympSum) %>%
-  pivot_longer(cols = everything(), 
-               names_sep = "_", 
-               names_to = c("Time", "Measure"),
-               values_to = "Rating") %>%
-  group_by(Time, Measure) # %>%
-  
-rate_data <- plot_data %>%
-  filter(Time != "Diff")#%>%
-#  filter(Rating < 11)
-
-rate_data <- plot_data %>%
-  filter(Time != "Diff")# %>%
-  #filter(Rating < 11)
-  
-library(ggpol)
-
-
-rate_data$Time <- factor(rate_data$Time,levels=c("pre","post"))
-
-p3 <- ggplot(rate_data, aes(x = Measure, y = Rating, fill = Time)) +
-  geom_boxjitter(notch = TRUE, width = .5, jitter.shape = 1, outlier.shape = NA) +
-  scale_fill_manual(values = c("#E7B800", "#FC4E07")) +
-  theme_cowplot()+
-  facet_wrap(~Measure, scales = "free", 
-             labeller = as_labeller(c(RateScared = "Rating", SympSum = "Sum of Symptoms")),
-            strip.position = "left")+
-  theme(
-  strip.background = element_blank(),
-  strip.placement = "outside",
-  legend.position = "top") +
-  scale_x_discrete(labels=c(
-    "RateScared" = "Fear",  "SympSum" = "Somatic Anxiety")) +
-   ylab(NULL) +
-  ggtitle("Fear and Somatic Anxiety")
-  
-
-p3
-
-p3 + p2 + plot_annotation(tag_levels = 'A') & 
-  theme(text = element_text('arial'))
-
-
-ggsave(here("figs", "surveyResults2.png"), height = 6, width = 12, dpi = 150, units = "in")
-```
-
 
