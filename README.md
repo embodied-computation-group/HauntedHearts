@@ -1,4 +1,4 @@
-# The Tell Tale Heart: Ecological Horror is Magnified by Interoceptive Uncertainty
+# The Tell Tale Heart: Ecological Horror Reflects Interoceptive Precision
 
 ### Figure 1:
 ![Figure 1: ](figs/fig1_spoof.gif)
