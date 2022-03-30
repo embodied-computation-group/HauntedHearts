@@ -737,25 +737,35 @@ sp4<-ggplot(new_df, aes_string(xvar, yvar))+
 
 corr_data <- haunted_data %>%
   select(matches("SympSum"),matches("RateScared"),matches("Diff_Fear"),matches("Diff_Symptom"),
-         matches("Precision"), matches("Threshold"), matches("MedianBPM"), matches("Mean_Fear"), matches("Mean_Symptom"), matches("RapidHB"), matches("Diff_HB"))
+         matches("Precision"), matches("Threshold"), matches("MedianBPM"), matches("Mean_Fear"), matches("Mean_Symptom"), matches("RapidHB"), matches("Diff_HB"), matches("Confidence"))
 
 
 #corr_data <- corr_data[, c(7, 8, 1,3,12, 2,4,13, 10,11, 14, 5,6,9)]
-corr_data <- corr_data[, c(7, 8, 1,3,12, 2,4,13,5,6,14,9)]
-colnames(corr_data) <- c("Precision", "Threshold", "preAnxiety", "preFear", "preHB", "postAnxiety", "postFear ", "postHB", "diffAnx","diffFear", "diffHB", "medianBPM") 
+corr_data <- corr_data[, c(7, 8, 15, 1,3,12, 2,4,13,5,6,14,9)]
+colnames(corr_data) <- c("Precision", "Threshold", "Confidence", "preAnxiety", "preFear", "preHB", "postAnxiety", "postFear ", "postHB", "diffAnx","diffFear", "diffHB", "medianBPM") 
 
-pval <- psych::corr.test(corr_data, method = "spearman", adjust = "fdr")$p
+pval <- psych::corr.test(corr_data, method = "pearson", adjust = "fdr")$p
 
 
-cp1 <- ggcorrplot(cor(corr_data), p.mat = pval, hc.order=FALSE, type='full', insig='blank', method = "square", sig.level = 0.05, 
+
+pval[lower.tri(pval, diag = FALSE)] = 0.05
+
+
+
+cp1 <- ggcorrplot(cor(corr_data), p.mat = pval, hc.order=FALSE,
+           type='full', insig='blank', method = "square", sig.level = 0.05, 
            outline.col = "black",
            ggtheme = ggplot2::theme_minimal,
-           colors = c("#6D9EC1", "white", "#EA5F21FF"))
+           colors = c("#6D9EC1", "white", "#EA5F21FF")) +
+  geom_hline(yintercept = 13.5, linetype = 3, size = 1.5) +
+  geom_vline(xintercept = .5, linetype = 3, size = 1.5) +
+  geom_abline(intercept = 0, slope = 1, linetype = 3, size = 1.5) 
+
 
 
 (cp1 + sp2) / (sp3 + sp4)
 
-ggsave(here("figs", "fig_3corrplot_fdr_05.png"), height = 8, width = 8, dpi = 150, units = "in")
+ggsave(here("figs", "fig_3corrplot_fdr_05.png"), height = 8, width = 8, dpi = 300, units = "in")
 
 #ggcorrplot(cor(corr_data), p.mat = pval, hc.order=FALSE, type='lower', insig='blank', method = "circle", sig.level = 1)
 
