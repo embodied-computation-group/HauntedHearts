@@ -45,10 +45,7 @@ sum(haunted_data$d== 0, na.rm = T)
 
 haunted_data_filt <- haunted_data %>%
   filter(`Complete (1 = yes, 0 = no)` == 1) %>% # exclude subjects who did not complete the ride
-#  filter(Gender != 2) %>%  # filter the one non-binary subject, to not mess up models
-#  filter(d > 0) %>% # filter extremely poor performance
   filter(d != 0) %>% 
-#  filter(between(c, -.9, .9)) %>% 
   drop_na(d, Post_scared) %>% 
   mutate(Diff_Fear = Post_scared-Pre_scared) %>%
   mutate(Diff_NoRelax = Post_symp_not_relax - Pre_symp_not_relax) %>% 
