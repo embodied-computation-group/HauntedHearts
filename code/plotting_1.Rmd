@@ -15,19 +15,24 @@ remotes::install_github('jorvlan/raincloudplots')
 library(raincloudplots)
 
 haunted_data <- read_csv(here("data", "/summary_r.csv"))
-head(haunted_data)
+
 
 ### some basic exclusions
 
 haunted_data <- haunted_data %>%
-  filter(`Complete (1 = yes, 0 = no)` == 1) %>%
-  filter(gender != 2) %>%
-  filter(d > -1) %>%
+  filter(`Complete (1 = yes, 0 = no)` == 1) %>% # exclude subjects who did not complete the ride
+  filter(gender != 2) %>%  # filter the one non-binary subject, to not mess up models
+  filter(d > -1) %>% # filter extremely poor performance
   na.omit() %>%
+  filter(NoDprime == 0) %>% 
   mutate(Diff_Fear = post_RateScared-pre_RateScared) %>%
-  mutate(Diff_Symptom = post_SympSum-pre_SympSum) %>%
+  mutate(Diff_NoRelax = post_SympNoRelax - pre_SympNoRelax) %>% 
+  mutate(Diff_Dizzy = post_SympDizzy - pre_SympDizzy) %>%
   mutate(Diff_HB = post_SympRapidHB-pre_SympRapidHB) %>%
-  mutate(Mean_Symptom = (post_SympSum+pre_SympSum)/2) %>%
+  mutate(Diff_Shaky = post_SympShaky - pre_SympShaky) %>%
+  mutate(Diff_Breath = post_SympBreathing - pre_SympBreathing) %>%
+  mutate(Diff_SumSymptom = post_SympSum-pre_SympSum) %>%
+  mutate(Mean_SumSymptom = (post_SympSum+pre_SympSum)/2) %>%
   mutate(Mean_Fear = (post_RateScared+pre_RateScared)/2) 
 
 
@@ -41,6 +46,30 @@ haunted_data$PsiPrecision <- (-haunted_data$PsiSlope)+ max(haunted_data$PsiSlope
 results_LM <- function(data, xvar, yvar) {
     fm <- as.formula(paste(yvar, "~", xvar))
     lm(fm, data = data)
+}
+
+## write out data for JASP
+
+write.csv(haunted_data, file = here("data", "summary_fearHeart_jasp.csv"))
+
+
+## define custom theme
+
+theme_scatter <- function(){
+  
+    #theme_cowplot() %+replace%    #replace elements we want to change
+    theme(
+    text = element_text(size=10),
+    plot.title = element_text(size = 10),
+    plot.subtitle = element_text(size = 10), 
+    axis.title.x = element_text(size = 11),
+    axis.title.y = element_text(size = 11),
+    axis.text.x = element_text(size = 10),
+    axis.text.y = element_text(size = 10)
+    )
+  
+  
+  
 }
 
 ```
@@ -146,6 +175,8 @@ mat_data <- haunted_data %>%
                values_to = "Rating") %>%
   group_by(Time, Measure)  %>%
   filter(Measure != "SympSum") %>%
+  filter(Time != "Mean") %>% 
+  filter(Time != "Diff") %>% 
   filter(Rating < 4)
 
 
@@ -185,7 +216,37 @@ ggsave(here("figs", "Figure_2_SubjectiveVars.png"), height = 6, width = 12, dpi 
 
 Scatter Plots: Baseline Anxiety and HRD 
 ```{r}
+
+shape_flag = 19
+method_flag = "spearman"
+alpha_flag = .3
 ############################## - Threshold
+xvar = "PsiThreshold"
+yvar = "pre_RateScared"
+xlabel = "Interoceptive Bias"
+ylabel = "Baseline Fear"
+
+model_fit <- results_LM(haunted_data, xvar, yvar)
+summary(model_fit)
+temp_var <- predict(model_fit, interval="prediction")
+
+new_df <- cbind(haunted_data, temp_var)
+
+p1<-ggplot(new_df, aes_string(xvar, yvar))+
+    geom_point(shape = shape_flag, alpha = alpha_flag) +
+   # geom_line(aes(y=lwr), color = "red", linetype = "dashed")+ # for prediction intervals
+    #geom_line(aes(y=upr), color = "red", linetype = "dashed")+
+    geom_smooth(method=lm, se=TRUE, color = "black", fullrange = TRUE) +
+  theme_cowplot()+
+    stat_cor(method = method_flag, label.x = min(haunted_data[,xvar]), label.y = max(haunted_data[,yvar]+1), size = 3)+
+  scale_y_continuous(breaks = seq(0,10,2))+
+  ylab(ylabel)+
+  xlab(xlabel) +
+   theme_scatter()
+
+
+############################## - Slope
+  
 xvar = "PsiThreshold"
 yvar = "pre_SympSum"
 xlabel = "Interoceptive Bias"
@@ -197,51 +258,26 @@ temp_var <- predict(model_fit, interval="prediction")
 
 new_df <- cbind(haunted_data, temp_var)
 
-p1<-ggplot(new_df, aes_string(xvar, yvar))+
-    geom_point() +
-   # geom_line(aes(y=lwr), color = "red", linetype = "dashed")+ # for prediction intervals
-   # geom_line(aes(y=upr), color = "red", linetype = "dashed")+
-    geom_smooth(method=lm, se=TRUE) +
-  theme_cowplot()+
-    stat_cor(method = "spearman", label.x = min(haunted_data[,xvar]), label.y = max(haunted_data[,yvar]+1))+
-  scale_y_continuous(breaks = seq(0,10,2))+
-  ylab(ylabel)+
-  xlab(xlabel)
-
-
-############################## - Slope
-  
-xvar = "PsiPrecision"
-yvar = "pre_SympSum"
-xlabel = "Interoceptive Precision"
-ylabel = "Baseline Anxiety Symptoms"
-
-model_fit <- results_LM(haunted_data, xvar, yvar)
-summary(model_fit)
-temp_var <- predict(model_fit, interval="prediction")
-
-new_df <- cbind(haunted_data, temp_var)
-
 p2<-ggplot(new_df, aes_string(xvar, yvar))+
-    geom_point() +
-   # geom_line(aes(y=lwr), color = "red", linetype = "dashed")+ # for prediction intervals
-   # geom_line(aes(y=upr), color = "red", linetype = "dashed")+
-    geom_smooth(method=lm, se=TRUE) +
+    geom_point(shape = shape_flag, alpha = alpha_flag) +
+   #geom_line(aes(y=lwr), color = "red", linetype = "dashed")+ # for prediction intervals
+    #geom_line(aes(y=upr), color = "red", linetype = "dashed")+
+    geom_smooth(method=lm, se=TRUE, color = "black") +
   theme_cowplot()+
-    stat_cor(method = "spearman", label.x = min(haunted_data[,xvar]), label.y = max(haunted_data[,yvar]+1))+
+    stat_cor(method = method_flag, label.x = min(haunted_data[,xvar]), label.y = max(haunted_data[,yvar]+1), size = 3)+
   scale_y_continuous(breaks = seq(0,10,2))+
   ylab(ylabel)+
-  xlab(xlabel)
-
+  xlab(xlabel)+
+   theme_scatter()
 
 
 ############################## - Dprime
   
  
-xvar = "d"
-yvar = "pre_SympSum"
-xlabel = "Interoceptive Sensitivity"
-ylabel = "Baseline Anxiety Symptoms"
+xvar = "PsiPrecision"
+yvar = "pre_RateScared"
+xlabel = "Interoceptive Precision"
+ylabel = "Baseline Fear"
 
 model_fit <- results_LM(haunted_data, xvar, yvar)
 summary(model_fit)
@@ -250,26 +286,111 @@ temp_var <- predict(model_fit, interval="prediction")
 new_df <- cbind(haunted_data, temp_var)
 
 p3<-ggplot(new_df, aes_string(xvar, yvar))+
-    geom_point() +
+    geom_point(shape = shape_flag, alpha = alpha_flag) +
   #  geom_line(aes(y=lwr), color = "red", linetype = "dashed")+ # for prediction intervals
   #  geom_line(aes(y=upr), color = "red", linetype = "dashed")+
-    geom_smooth(method=lm, se=TRUE) +
+    geom_smooth(method=lm, se=TRUE, color = "black") +
   theme_cowplot()+
-    stat_cor(method = "spearman", label.x = min(haunted_data[,xvar]), label.y = max(haunted_data[,yvar]+1))+
+    stat_cor(method = method_flag, label.x = min(haunted_data[,xvar]), label.y = max(haunted_data[,yvar]+1), size = 3)+
   scale_y_continuous(breaks = seq(0,10,2))+
   ylab(ylabel)+
-  xlab(xlabel)
+  xlab(xlabel) +
+   theme_scatter()
+############################## - Dprime
+  
+ 
+xvar = "PsiPrecision"
+yvar = "pre_SympSum"
+xlabel = "Interoceptive Precision"
+ylabel = "Baseline Anxiety"
+
+model_fit <- results_LM(haunted_data, xvar, yvar)
+summary(model_fit)
+temp_var <- predict(model_fit, interval="prediction")
+
+new_df <- cbind(haunted_data, temp_var)
+
+p4<-ggplot(new_df, aes_string(xvar, yvar))+
+    geom_point(shape = shape_flag, alpha = alpha_flag) +
+  #  geom_line(aes(y=lwr), color = "red", linetype = "dashed")+ # for prediction intervals
+  #  geom_line(aes(y=upr), color = "red", linetype = "dashed")+
+    geom_smooth(method=lm, se=TRUE, color = "black") +
+  theme_cowplot()+
+    stat_cor(method = method_flag, label.x = min(haunted_data[,xvar]), label.y = max(haunted_data[,yvar]+1), size = 3)+
+  scale_y_continuous(breaks = seq(0,10,2))+
+  ylab(ylabel)+
+  xlab(xlabel)+
+   theme_scatter()
+
+############################## - Dprime
+  
+ 
+xvar = "PsiPrecision"
+yvar = "Diff_Fear"
+xlabel = "Interoceptive Precision"
+ylabel = "Fear Prediction Error"
+
+model_fit <- results_LM(haunted_data, xvar, yvar)
+summary(model_fit)
+temp_var <- predict(model_fit, interval="prediction")
+
+new_df <- cbind(haunted_data, temp_var)
+
+p5<-ggplot(new_df, aes_string(xvar, yvar))+
+    geom_point(shape = shape_flag, alpha = alpha_flag) +
+   geom_line(aes(y=lwr), color = "#EA5F21FF", linetype = "dashed")+ # for prediction intervals
+   geom_line(aes(y=upr), color = "#EA5F21FF", linetype = "dashed")+
+   geom_smooth(method = lm, se=TRUE, color = "#151515FF", size = 1) +
+  theme_cowplot()+
+    stat_cor(method = method_flag, label.x = min(haunted_data[,xvar]), label.y = max(haunted_data[,yvar]+1), size = 3)+
+  #scale_y_continuous(breaks = seq(0,10,2))+
+  ylab(ylabel)+
+  xlab(xlabel)+
+   theme_scatter()
 
 
-#################### - Combined Plot
+############################## - Dprime
+  
+ 
+xvar = "PsiPrecision"
+yvar = "Diff_SumSymptom"
+xlabel = "Interoceptive Precision"
+ylabel = "Anxiety Prediction Error"
 
-p1+p2+p3 + plot_layout(guides = "collect")
+model_fit <- results_LM(haunted_data, xvar, yvar)
+summary(model_fit)
+temp_var <- predict(model_fit, interval="prediction")
 
-ggsave(here("figs", "scatter_baseline_anxiety.png"), height = 1200, width = 2400, dpi = 150, units = "px")
+new_df <- cbind(haunted_data, temp_var)
+#"#151515FF", "#A6A6A6FF","#C0C3C6FF", "#EA5F21FF", "#F6FAFDFF"
+p6<-ggplot(new_df, aes_string(xvar, yvar))+
+    geom_point(shape = shape_flag, alpha = alpha_flag) +
+   geom_line(aes(y=lwr), color = "#EA5F21FF", linetype = "dashed")+ # for prediction intervals
+   geom_line(aes(y=upr), color = "#EA5F21FF", linetype = "dashed")+
+    geom_smooth(method=lm, se=TRUE, color = "#151515FF", size = 1) +
+  theme_cowplot()+
+    stat_cor(method = method_flag, label.x = min(haunted_data[,xvar]), label.y = max(haunted_data[,yvar]+1) , size = 3)+
+  #scale_y_continuous(breaks = seq(0,10,2))+
+  ylab(ylabel)+
+  xlab(xlabel)+
+   theme_scatter()
 
-p1 + p2 + p3
+p1+p2 + plot_layout(guides = "collect")
+ggsave(here("figs", "scatter_fig3_threshold.png"), height = 9, width = 11.6, dpi = 300, units = "cm")
+
+(p3+p4)/(p5+p6)
+
+ggsave(here("figs", "scatter_fig4_precision.png"), height = 9, width = 11.6, dpi = 300, units = "cm")
 
 
+ggarrange(p1,p2)
+ggsave(here("figs", "scatter_fig3_threshold.png"), dpi = 300, units = "cm",
+       height = 8, width = 11.6)
+
+
+ggarrange(p3,p4,p5,p6, nrow = 2, ncol = 2)
+ggsave(here("figs", "scatter_fig4_precision.png"), dpi = 300, units = "cm",
+       height = 11.6, width = 11.6, bg = "white")
 ```
 
 
