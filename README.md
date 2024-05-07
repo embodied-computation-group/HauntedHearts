@@ -1,7 +1,7 @@
 # The Tell Tale Heart: Ecological Horror Reflects Interoceptive Precision
 
-### Figure 1:
-![Figure 1: ](figs/fig1_spoof.gif)
+NOTE: this work has not been peer reviewed and is in an unfinished state. It is here merely as a record of the analyses. 
+
 
 ### Figure 2:
 ![Figure 2: ](figs/Figure_2_SubjectiveVars.png)
